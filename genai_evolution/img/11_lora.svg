@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1520 660" width="1520" height="660" font-family="Inter, 'Segoe UI', Arial, sans-serif">
+  <rect width="1520" height="660" fill="#ffffff"/>
+  <text x="40" y="52" font-size="30" font-weight="700" fill="#16202f">LoRA: freeze W₀, train a tiny low-rank update ΔW = B·A</text>
+  <text x="40" y="84" font-size="17" fill="#5a6a85">The pretrained matrix never changes. Only two thin matrices (rank r = 1–8) receive gradients.</text>
+
+  <!-- x input -->
+  <rect x="40" y="250" width="90" height="60" rx="12" fill="#e8eef7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="85" y="287" font-size="22" font-weight="700" text-anchor="middle" fill="#16202f">x</text>
+
+  <!-- W0 frozen -->
+  <rect x="210" y="165" width="300" height="150" rx="16" fill="#eef1f6" stroke="#64748b" stroke-width="3" stroke-dasharray="10 6"/>
+  <text x="360" y="228" font-size="30" font-weight="800" text-anchor="middle" fill="#334155">W₀</text>
+  <text x="360" y="258" font-size="16" text-anchor="middle" fill="#475569">d × k pretrained</text>
+  <text x="360" y="287" font-size="16" font-weight="700" text-anchor="middle" fill="#b91c1c">FROZEN — no gradients</text>
+
+  <!-- A and B -->
+  <rect x="210" y="360" width="140" height="64" rx="12" fill="#d9f2e4" stroke="#3f9d6a" stroke-width="3"/>
+  <text x="280" y="392" font-size="22" font-weight="800" text-anchor="middle" fill="#14532d">A</text>
+  <text x="280" y="413" font-size="14" text-anchor="middle" fill="#166534">r × k trainable</text>
+  <rect x="380" y="360" width="140" height="64" rx="12" fill="#d9f2e4" stroke="#3f9d6a" stroke-width="3"/>
+  <text x="450" y="392" font-size="22" font-weight="800" text-anchor="middle" fill="#14532d">B</text>
+  <text x="450" y="413" font-size="14" text-anchor="middle" fill="#166534">d × r trainable</text>
+
+  <!-- arrows -->
+  <defs>
+    <marker id="arw" markerWidth="12" markerHeight="12" refX="9" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <line x1="132" y1="280" x2="200" y2="255" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <line x1="132" y1="280" x2="200" y2="392" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <line x1="352" y1="392" x2="370" y2="392" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <text x="318" y="452" font-size="15" text-anchor="middle" fill="#166534" font-weight="700">r = 1–8  ≪  d = 12,288</text>
+
+  <!-- sum -->
+  <circle cx="570" cy="280" r="24" fill="#ffffff" stroke="#334155" stroke-width="3"/>
+  <text x="570" y="290" font-size="26" font-weight="700" text-anchor="middle" fill="#16202f">+</text>
+  <line x1="510" y1="245" x2="546" y2="268" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <line x1="520" y1="392" x2="570" y2="310" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <text x="545" y="452" font-size="15" text-anchor="middle" fill="#166534" font-weight="700">ΔW = B·A</text>
+  <line x1="594" y1="280" x2="662" y2="280" stroke="#334155" stroke-width="3" marker-end="url(#arw)"/>
+  <text x="672" y="274" font-size="22" font-weight="800" fill="#16202f">h</text>
+  <text x="672" y="300" font-size="13" fill="#5a6a85">output</text>
+
+  <!-- equation strip -->
+  <rect x="40" y="510" width="720" height="118" rx="14" fill="#f6f9fd" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="400" y="552" font-size="24" font-weight="800" text-anchor="middle" fill="#16202f">h = W₀x + (α/r)·B·A·x</text>
+  <text x="400" y="584" font-size="15" text-anchor="middle" fill="#5a6a85">At step 0 the update is zero (B = 0), so training starts exactly at the pretrained model.</text>
+  <text x="400" y="610" font-size="15" text-anchor="middle" fill="#5a6a85">Gradients touch only A and B — W₀ is never updated.</text>
+
+  <!-- deploy panel -->
+  <rect x="960" y="120" width="520" height="420" rx="18" fill="#eef7fb" stroke="#82CED8" stroke-width="3"/>
+  <text x="1220" y="165" font-size="21" font-weight="800" text-anchor="middle" fill="#0e7490">WHY IT IS CHEAP</text>
+  <text x="1000" y="215" font-size="17" fill="#16202f">1. Train only A and B</text>
+  <text x="1000" y="242" font-size="15" fill="#5a6a85">4.7M trainable vs 175B frozen (0.1%)</text>
+  <text x="1000" y="286" font-size="17" fill="#16202f">2. Merge before serving</text>
+  <text x="1000" y="313" font-size="15" fill="#5a6a85">W ← W₀ + BA  →  +0% latency</text>
+  <text x="1000" y="357" font-size="17" fill="#16202f">3. Store one tiny adapter per task</text>
+  <text x="1000" y="384" font-size="15" fill="#5a6a85">checkpoint 350 GB  →  35 MB</text>
+  <rect x="1000" y="425" width="440" height="72" rx="12" fill="#ffffff" stroke="#bae6fd" stroke-width="2"/>
+  <text x="1220" y="457" font-size="16" text-anchor="middle" fill="#0e7490" font-weight="700">One base model + a folder of sticky notes</text>
+  <text x="1220" y="481" font-size="14" text-anchor="middle" fill="#5a6a85">swap adapters like camera lenses</text>
+</svg>
