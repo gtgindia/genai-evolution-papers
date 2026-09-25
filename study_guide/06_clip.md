@@ -1,0 +1,77 @@
+# Learning Transferable Visual Models From Natural Language Supervision — CLIP (Radford et al., 2021, arXiv:2103.00020)
+
+Authors: Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever, all at OpenAI. The model was announced in January 2021 alongside DALL-E, and the paper was posted to arXiv in February 2021 and appeared at ICML 2021.
+
+## The story in one paragraph
+
+This paper shows that you do not need a fixed list of one thousand labels to teach a computer to see. Instead, you can teach it by showing it 400 million pictures together with the words people wrote about them on the internet, and asking it a simple game: which caption belongs with which picture. The resulting model is called CLIP, which stands for Contrastive Language-Image Pre-training. It has two halves, an image encoder and a text encoder, that map pictures and sentences into one shared space. After training, you can recognize anything you can describe in words, without any extra training, simply by asking whether a photo of a dog or a photo of a cat matches better. The best CLIP model reaches 76.2 percent zero-shot accuracy on ImageNet, matching a fully supervised ResNet-50 that used 1.28 million labeled examples, and it transfers surprisingly well to more than thirty other datasets.
+
+## What problem was hurting before this paper
+
+Computer vision systems were excellent students but only within one classroom. A typical model was trained to pick among a fixed set of categories, such as the one thousand ImageNet classes. If you wanted to recognize a new concept, you had to collect new labeled images, add a new output layer, and fine-tune. This was expensive and narrow. Earlier attempts to learn from captions, such as Visual N-Grams, could only reach 11.5 percent on ImageNet zero-shot, far below the 50 percent of classic vision systems and the 88 percent of the best supervised models. Other approaches used weak supervision from hashtags or large noisy label sets, but they still used a static classifier with a fixed vocabulary. What was missing was a scalable way to learn an open vocabulary directly from natural language, so that language itself could become the interface for specifying new visual tasks.
+
+## The core idea, explained simply (with an analogy)
+
+Imagine a huge party game with a table full of photos and a table full of captions. Your job is to reunite each photo with its true caption. If you get good at this game across hundreds of millions of examples, you must have learned what dogs look like, what maps look like, what the word Eiffel Tower means, and even how to read text inside images.
+
+CLIP is trained on exactly that game. The image encoder looks at pictures, the text encoder reads captions, and both place their summaries as points in one shared room. True pairs are pulled together, while wrong pairs are pushed apart. After training, classification becomes a matching problem. To test on pets, you write the sentences a photo of a cat and a photo of a dog, embed them with the text encoder, embed the test photo with the image encoder, and pick whichever sentence lands closest. The text encoder therefore acts like a machine that prints a custom classifier on demand from words alone.
+
+## How it actually works (step by step: architecture, training objective, inference — explain each piece in words; explain key equations in plain language)
+
+The dataset comes first. The authors build WebImageText, usually called WIT, with 400 million image-text pairs collected from the public internet. To cover many concepts, they search for pairs whose text contains one of 500,000 queries drawn from Wikipedia words, bigrams, article titles, and WordNet, keeping up to 20,000 pairs per query. The total word count is similar to the WebText used for GPT-2. Existing datasets like MS-COCO and Visual Genome have only about 100,000 images each, and filtered YFCC100M has only about 15 million usable English pairs, so WIT is an order of magnitude larger and much more diverse.
+
+The model has two encoders. For images, the paper studies both ResNets and Vision Transformers. The ResNet path starts from ResNet-50 and ResNet-101 with ResNet-D and blur-pooling improvements, and replaces global average pooling with attention pooling. It then scales up following EfficientNet ideas to RN50x4, RN50x16, and RN50x64. The Vision Transformer path uses ViT-B/32, ViT-B/16, and ViT-L/14, with an extra high-resolution fine-tune called ViT-L/14 at 336 pixels. For text, a 63-million-parameter Transformer with 12 layers reads byte-pair-encoded text up to 76 tokens, bracketed by start and end tokens, and uses the final end-token activation as the sentence representation. Both representations are linearly projected into a shared embedding space and normalized to unit length.
+
+The training objective is contrastive and beautifully simple. Given a batch of N true image-text pairs, there are N-squared possible pairings but only N correct ones along the diagonal. The model computes cosine similarities for all pairs, scales them by a learned temperature, and applies cross-entropy loss in both directions: given an image, pick the right text, and given a text, pick the right image. The loss is the average of the two directions. In plain language, every batch is treated as a 32,768-way multiple-choice quiz where each image must find its caption and each caption must find its image. The paper uses a very large batch size of 32,768, Adam with cosine decay, mixed precision, gradient checkpointing, and 32 epochs. The largest ResNet took 18 days on 592 V100 GPUs.
+
+For zero-shot inference, you precompute text embeddings for all class descriptions and then classify each image by cosine similarity followed by softmax. That is mathematically a logistic regression classifier with normalized inputs, normalized weights, no bias, and temperature scaling, except the weights were written by language instead of learned from labeled images. Prompt engineering matters a lot. Using the template a photo of a label instead of the bare label improves ImageNet by 1.3 percent, because captions in training are usually full sentences. Ensembling 80 different prompts, such as a photo of a big label and a photo of a small label, and averaging their text embeddings adds another 3.5 percent. Together, careful wording gives almost five points for free. The paper also customizes prompts per task, such as adding a type of pet on Oxford Pets or putting quotes around numbers for OCR.
+
+## Key results and numbers from the paper (with the actual scores/tables described in words)
+
+Compared with the prior Visual N-Grams baseline, CLIP is a leap. On ImageNet, accuracy rises from 11.5 percent to 76.2 percent zero-shot. Top-5 accuracy reaches 95 percent, matching Inception-V4. On the Yahoo image set, CLIP reaches 98.4 percent versus 72.4 percent before, and on SUN scenes it reaches 58.5 percent versus 23.0 percent.
+
+Across 27 datasets, zero-shot CLIP beats a supervised linear probe on ResNet-50 features on 16 datasets. It shines on general objects like CIFAR-10 and STL-10, where it reaches 99.3 percent on STL-10, and on video actions, where it beats ResNet-50 by 14.5 points on Kinetics-700 and 7.7 points on UCF101. It also gains over 20 points on Stanford Cars and Food101, which the authors attribute to broader verb and noun supervision in web text. It struggles on specialized tasks like satellite images, tumor detection, counting synthetic objects, traffic signs, and car-distance estimation, where zero-shot accuracy can lag supervised models by 10 to 35 points.
+
+Data efficiency analysis shows that zero-shot CLIP matches a 4-shot linear classifier on the same features on average, and matches a 16-shot classifier from the best ImageNet-21K model. On ImageNet alone, zero-shot matches a 16-shot classifier. The median dataset needs about 5 labeled examples per class to catch zero-shot, though the mean is near 21 because a few datasets need more than 100.
+
+Linear-probe representation learning tells a similar story. Small CLIP ResNets beat ImageNet-1K ResNets but lose to ImageNet-21K models on the 12-dataset Kornblith suite. At scale, ResNet-50x64 slightly beats the best Noisy Student EfficientNet-L2, and ViT-L/14 at 336 pixels beats it by 2.6 points on average, and by 5 points on the broader 27-dataset suite. CLIP wins on 21 of 27 datasets, with huge gains on OCR tasks like Rendered SST2, geolocation like Country211, and action recognition.
+
+Robustness is a highlight. On seven natural distribution shifts including ImageNet-V2, Sketch, Rendition, Adversarial, ObjectNet, Vid, and YouTube-BB, zero-shot CLIP shrinks the gap between in-distribution and out-of-distribution accuracy by up to 75 percent. Adapting to ImageNet with a supervised linear layer raises ImageNet accuracy by 9.2 points to 85.4 percent but slightly lowers average shift accuracy, suggesting that fitting the ImageNet distribution itself causes brittleness.
+
+## Why this paper matters (what later work it unlocked — name the specific later papers among the 15 where relevant)
+
+CLIP made language the remote control for vision. Within this collection, its most important partnership is with paper 05 (DDPM) and paper 07 (Latent Diffusion). Stable Diffusion uses a CLIP text encoder to steer denoising, and DALL-E 2 uses CLIP embeddings as a prior, so without CLIP there is no prompt-to-image explosion. CLIP also foreshadows paper 08 (InstructGPT) and paper 13 (LLaMA 2), because prompting with words plus zero-shot transfer is the vision analogue of instructing and prompting language models. Paper 09 on chain-of-thought and paper 15 on DeepSeek-R1 extend the same lesson that a flexible interface plus scale unlocks new tasks without retraining. In industry, CLIP became the vision side of Flamingo, LLaVA, GPT-4V, open-vocabulary detection, and video retrieval, and its contrastive recipe directly inspired audio, video, and medical variants.
+
+## Honest limitations
+
+CLIP is still weak on fine-grained and systematic tasks. It confuses similar car models, flower species, and aircraft variants. It is poor at counting objects and near random on tasks far from web text, such as estimating distance to the nearest car. Its MNIST accuracy is only 88 percent, worse than plain logistic regression on pixels, because handwriting barely appears in pre-training. That shows that scaling data does not guarantee true out-of-distribution generalization.
+
+The method is also data hungry in an extreme sense. Training sees 12.8 billion image-text pairs over 32 epochs, which at one image per second would take over 400 years. Prompt wording and class design heavily affect results and biases, so two developers can get different answers from the same model just by phrasing labels differently. Finally, zero-shot rarely matches a fully supervised model on the same CLIP features. The gap is typically 10 to 25 points, so the paper estimates that a thousand-fold increase in compute would be needed to reach supervised state of the art everywhere, which is not practical without better efficiency.
+
+## Fun trivia and history (from your web search)
+
+One charming detail is hidden in a footnote. The paper notes that some datasets shipped without any readable label mapping, so first author Alec Radford, who came from the GPT language-modeling world rather than traditional computer vision, had to teach himself flower species and German traffic signs to write good prompts. That outsider perspective was arguably the point. Because the team was steeped in GPT-2 and GPT-3 prompting culture, they treated a photo of a label as a prompt to engineer and ensemble, inventing vision prompt engineering a year before the phrase became fashionable. The 80-prompt ImageNet ensemble is the direct ancestor of today's system prompts and prompt-tuning libraries.
+
+A second piece of history is the release moment and the ethics section. CLIP was announced on OpenAI's blog on January 5, 2021, on the same day as the original DALL-E, framing 2021 as the year language met vision. The paper then devotes an unusually long Broader Impacts section to bias probes. For example, when forced to choose among FairFace labels plus words like criminal and animal, the model disproportionately assigned crime and non-human labels by age, gender, and race, but simply adding the word child as an option cut egregious assignments for young people from over 30 percent to under 9 percent. That vivid demonstration that class design itself is a safety intervention is still quoted in responsible-AI courses, and it showed that flexible zero-shot classifiers bring both power and new responsibility.
+
+## Key terms explained (glossary of 5-8 terms)
+
+Contrastive learning means learning by comparison. The model pulls true image-text pairs together in embedding space while pushing the many wrong pairings in the same batch apart. It learns what belongs together without needing explicit category labels.
+
+Zero-shot transfer means using a model on a new dataset without any extra training examples. You describe the classes in words, and the model classifies by similarity. Few-shot means you allow a handful of examples per class for a small linear model on top.
+
+Linear probe means freezing the image encoder and training only a simple logistic-regression layer on its features. It measures representation quality separately from task-learning ability.
+
+Prompt engineering and ensembling mean wording class descriptions carefully and averaging several wordings together. Because web captions are sentences rather than single words, a photo of a dog matches training style better than just dog.
+
+Temperature scaling means dividing similarity scores by a learned softness knob before softmax. A low temperature makes the model very confident about the closest match, while a high temperature spreads probability more evenly.
+
+WebImageText, or WIT, is the 400-million-pair dataset built for this paper from internet images and alt-text. It is far larger and noisier than COCO or Visual Genome, which is exactly why it teaches an open vocabulary.
+
+Distribution shift means testing on images that look different from training, such as sketches, renditions, or video frames. CLIP is unusually robust to natural shifts but still fails on truly unfamiliar domains like handwriting.
+
+## Connections (which earlier paper it builds on, which later paper builds on it)
+
+CLIP builds on the Transformer from paper 01 and on BERT-style text encoders from paper 02, but it rejects the fixed-softmax habit of classic ImageNet training. It is inspired by GPT-2 and GPT-3 from paper 03 for the idea that prompting plus scale enables zero-shot task learning. It simplifies the ConVIRT contrastive objective from medical imaging and scales it a hundredfold, and it competes directly with the ResNet, EfficientNet, BiT, and Vision Transformer baselines that dominate its tables.
+
+It is built upon by paper 07 (Latent Diffusion), which conditions denoising on CLIP text embeddings to make Stable Diffusion possible, and conceptually by papers 08, 13, and 15, which apply the same prompt-and-scale philosophy to instruction following and reasoning. Later systems like DALL-E 2, Flamingo, LLaVA, and GPT-4V all treat CLIP as the standard bridge between pixels and words.
